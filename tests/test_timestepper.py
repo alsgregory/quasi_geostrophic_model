@@ -10,10 +10,12 @@ from quasi_geostrophic_model import *
 def test_timestepper_final_time():
 
     mesh = UnitSquareMesh(2, 2)
+    dg_fs = FunctionSpace(mesh, 'DG', 0)
+    cg_fs = FunctionSpace(mesh, 'CG', 1)
 
     var = 0.0
 
-    QG = quasi_geostrophic(mesh, var)
+    QG = quasi_geostrophic(dg_fs, cg_fs, var)
     QG.timestepper(2.0)
 
     assert QG.t == 2.0
@@ -22,10 +24,12 @@ def test_timestepper_final_time():
 def test_timestepper_double_final_time():
 
     mesh = UnitSquareMesh(2, 2)
+    dg_fs = FunctionSpace(mesh, 'DG', 0)
+    cg_fs = FunctionSpace(mesh, 'CG', 1)
 
     var = 0.0
 
-    QG = quasi_geostrophic(mesh, var)
+    QG = quasi_geostrophic(dg_fs, cg_fs, var)
 
     # generate random end time that wouldn't be a factor of timestep
     T = np.random.uniform(0, 0.1, 1)[0]
@@ -42,10 +46,12 @@ def test_adaptive_timestepper():
     for i in range(2):
 
         mesh = UnitSquareMesh(n[i], n[i])
+        dg_fs = FunctionSpace(mesh, 'DG', 0)
+        cg_fs = FunctionSpace(mesh, 'CG', 1)
 
         var = 0.0
 
-        QG = quasi_geostrophic(mesh, var)
+        QG = quasi_geostrophic(dg_fs, cg_fs, var)
         dt[i] = QG.dt
 
     assert np.abs((2 * dt[1]) - dt[0]) < 1e-5
@@ -54,16 +60,17 @@ def test_adaptive_timestepper():
 def test_zero_time():
 
     mesh = UnitSquareMesh(2, 2)
+    dg_fs = FunctionSpace(mesh, 'DG', 0)
+    cg_fs = FunctionSpace(mesh, 'CG', 1)
 
     var = 0.0
 
-    V = FunctionSpace(mesh, 'DG', 0)
     x = SpatialCoordinate(mesh)
     ufl_expression = sin(2 * pi * x[0])
 
-    f = Function(V).interpolate(ufl_expression)
+    f = Function(dg_fs).interpolate(ufl_expression)
 
-    QG = quasi_geostrophic(mesh, var)
+    QG = quasi_geostrophic(dg_fs, cg_fs, var)
     QG.initial_condition(ufl_expression)
     QG.timestepper(0.0)
 
