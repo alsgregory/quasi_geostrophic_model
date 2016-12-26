@@ -13,29 +13,32 @@ import numpy as np
 
 class quasi_geostrophic(object):
 
-    def __init__(self, mesh, variance, dg_deg=0, cg_deg=1):
+    def __init__(self, dg_fs, cg_fs, variance):
 
         """ class specifying a quasi geostrophic model
 
             Arguments:
 
-            :arg mesh: The :class:`Mesh` to spatially discretize over
-            :type mesh: :class:`Mesh`
+            :arg dg_fs: The discontinuous :class:`FunctionSpace` used for Potential Vorticity
+            :type dg_fs: :class:`FunctionSpace`
+
+            :arg cg_fs: The continuous :class:`FunctionSpace` used for the Streamfunction
+            :type cg_fs: :class:`FunctionSpace`
 
             :arg variance: Variance of random forcing
             :type variance: int, if zero, forcing is off
 
-            Optional arguments:
-
-            :arg dg_deg: Degree of DG :class:`FunctionSpace`
-            :type dg_deg: int, default = 0
-
-            :arg cg_deg: Degree of CG :class:`FunctionSpace`
-            :type cg_deg: int greater than 0, default = 1
-
         """
 
-        self.mesh = mesh
+        # define function spaces
+        self.Vdg = dg_fs
+        self.Vcg = cg_fs
+
+        self.mesh = dg_fs.mesh()
+
+        # check that both function spaces have same mesh
+        if self.mesh is not cg_fs.mesh():
+            raise ValueError("both function spaces need to be on same mesh")
 
         # only allow 2D meshes
         if self.mesh.geometric_dimension() != 2:
@@ -49,10 +52,6 @@ class quasi_geostrophic(object):
 
         # set-up noise variance
         self.variance = variance
-
-        # define function spaces
-        self.Vdg = FunctionSpace(self.mesh, 'DG', dg_deg)
-        self.Vcg = FunctionSpace(self.mesh, 'CG', cg_deg)
 
         # define current time
         self.t = 0

@@ -11,6 +11,10 @@ import numpy as np
 # define mesh
 mesh = UnitSquareMesh(30, 30)
 
+# define function spaces
+dg_fs = FunctionSpace(mesh, 'DG', 1)
+cg_fs = FunctionSpace(mesh, 'CG', 1)
+
 # define initial condition ufl expression
 x = SpatialCoordinate(mesh)
 ufl_expression = (exp(-(pow(x[0] - 0.25, 2) / (2 * pow(0.1, 2)) +
@@ -30,8 +34,7 @@ ufl_expression = (exp(-(pow(x[0] - 0.25, 2) / (2 * pow(0.1, 2)) +
 var = 2.0
 
 # set-up QG class
-dg_deg = 1
-QG = quasi_geostrophic(mesh, var, dg_deg=dg_deg)
+QG = quasi_geostrophic(dg_fs, cg_fs, var)
 
 # initial condition
 QG.initial_condition(ufl_expression)
