@@ -22,7 +22,7 @@ class quasi_geostrophic(object):
             :arg dg_fs: The discontinuous :class:`FunctionSpace` used for Potential Vorticity
             :type dg_fs: :class:`FunctionSpace`
 
-            :arg cg_fs: The ontinuous :class:`FunctionSpace` used for Potential Vorticity
+            :arg cg_fs: The continuous :class:`FunctionSpace` used for the Streamfunction
             :type cg_fs: :class:`FunctionSpace`
 
             :arg variance: Variance of random forcing
