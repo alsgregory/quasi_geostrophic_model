@@ -138,8 +138,7 @@ class quasi_geostrophic(object):
         if self.variance == 0:
             self.forcing.assign(0)
         else:
-            self.forcing.dat.data[:] = (self.variance *
-                                        np.random.normal(0, 1, np.shape(self.forcing.dat.data)))
+            self.forcing.dat.data[:] = np.random.normal(0, np.sqrt(self.variance), np.shape(self.forcing.dat.data))
 
     def __update_q_forced(self):
 
