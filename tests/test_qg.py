@@ -57,6 +57,26 @@ def test_correct_fs():
         assert dg_fs == QG.q_.function_space()
 
 
+def test_forcing_var():
+
+    mesh = UnitSquareMesh(1, 1)
+    n = 50000
+
+    dg_fs = FunctionSpace(mesh, 'DG', 0)
+    cg_fs = FunctionSpace(mesh, 'CG', 1)
+
+    var = 0.015
+
+    QG = quasi_geostrophic(dg_fs, cg_fs, var)
+
+    sample_forcing = np.zeros(n)
+    for i in range(n):
+        QG._quasi_geostrophic__update_forcing()
+        sample_forcing[i] = QG.forcing.dat.data[0]
+
+    assert np.abs(var - np.var(sample_forcing)) < 1e-3
+
+
 def test_random_q():
 
     mesh = UnitSquareMesh(2, 2)
