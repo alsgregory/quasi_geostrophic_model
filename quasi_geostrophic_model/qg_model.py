@@ -13,7 +13,7 @@ import numpy as np
 
 class quasi_geostrophic(object):
 
-    def __init__(self, dg_fs, cg_fs, variance):
+    def __init__(self, dg_fs, cg_fs, variance, prescribed_forcing=False):
 
         """ class specifying a quasi geostrophic model
 
@@ -28,7 +28,16 @@ class quasi_geostrophic(object):
             :arg variance: Variance of random forcing
             :type variance: int, if zero, forcing is off
 
+            Optional Arguments:
+
+            :arg prescribed_forcing: Whether or not the forcing is prescribed. Default: False
+            :type prescribed_forcing: Boolean
+
         """
+
+        self.prescribed_forcing = prescribed_forcing
+        if isinstance(self.prescribed_forcing, bool) is False:
+            raise ValueError('The switch for prescribed_forcing must be of boolean type')
 
         # define function spaces
         self.Vdg = dg_fs
@@ -69,6 +78,13 @@ class quasi_geostrophic(object):
         self.phi = TestFunction(self.Vcg)
         self.q = TrialFunction(self.Vdg)
         self.p = TestFunction(self.Vdg)
+
+        # helmholtz solver functions and projections
+        self.u = TrialFunction(self.Vcg)
+        self.u_ = Function(self.Vcg)
+        self.v = TestFunction(self.Vcg)
+        self.dw = Function(self.Vcg)
+        self.forcingProjector = Projector(self.u_, self.forcing)
 
         # set-up constants
         self.F = Constant(1.0)
@@ -133,12 +149,30 @@ class quasi_geostrophic(object):
                                                 solver_parameters={'ksp_type': 'cg',
                                                                    'pc_type': 'sor'})
 
+        # setup helmholtz solver for forcing
+        self.hlhs = self.dw * self.v * dx
+        self.hrhs = (dot(grad(self.v), grad(self.u)) + self.v * self.u) * dx
+
     def __update_forcing(self):
 
         if self.variance == 0:
             self.forcing.assign(0)
         else:
-            self.forcing.dat.data[:] = np.random.normal(0, np.sqrt(self.variance), np.shape(self.forcing.dat.data))
+
+            if self.prescribed_forcing is False:
+                self.dw.dat.data[:] = (np.sqrt(self.const_dt.dat.data) *
+                                       np.random.normal(0, np.sqrt(self.variance),
+                                                        np.shape(self.dw.dat.data)))
+                self.u_.assign(0)
+
+                solve(self.hrhs == self.hlhs, self.u_,
+                      solver_parameters={'ksp_type': 'cg'})
+
+                self.forcingProjector.project()
+
+            if self.prescribed_forcing is True:
+                # here self.u_ is already prescribed by user
+                self.forcingProjector.project()
 
     def __update_q_forced(self):
 
