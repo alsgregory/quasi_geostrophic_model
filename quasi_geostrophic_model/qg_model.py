@@ -36,8 +36,8 @@ class base_class(object):
 
         # set-up adaptive time-step
         self.mdx = MinDx(self.mesh)
-        self.dt = self.mdx.comm.allreduce(self.mdx.dat.data_ro.min(),
-                                          MPI.MIN)
+        self.dt = round(self.mdx.comm.allreduce(self.mdx.dat.data_ro.min(),
+                                                MPI.MIN), 8)
         self.const_dt = Constant(self.dt)
 
         # set-up noise variance
