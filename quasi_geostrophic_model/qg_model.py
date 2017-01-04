@@ -358,8 +358,6 @@ class two_level_quasi_geostrophic(object):
 
                 self.__t_c += self.qg_class_c.const_dt.dat.data[0]
                 self.__t_f += self.qg_class_f.const_dt.dat.data[0]
-                assert np.abs(self.__t_c - self.t) < 1e-5
-                assert np.abs(self.__t_f - self.t) < 1e-5
 
             else:
 
@@ -410,5 +408,3 @@ class two_level_quasi_geostrophic(object):
 
                 self.__t_c += self.qg_class_c.const_dt.dat.data[0]
                 self.__t_f += self.qg_class_f.const_dt.dat.data[0]
-                assert np.abs(self.__t_c - self.t) < 1e-5
-                assert np.abs(self.__t_f - self.t) < 1e-5
