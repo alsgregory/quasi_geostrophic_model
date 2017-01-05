@@ -157,8 +157,11 @@ class base_class(object):
 
     def __update_q_forced(self):
 
-        self.__update_forcing()
-        self.q_forced.assign(self.forcing + self.q_old)
+        if self.variance == 0:
+            self.q_forced.assign(self.q_old)
+        else:
+            self.__update_forcing()
+            self.q_forced.assign(self.forcing + self.q_old)
 
     def timestep(self):
 
@@ -245,8 +248,9 @@ class quasi_geostrophic(object):
                       np.random.normal(0, np.sqrt(self.variance), 1)[0])
                 self.qg_class._base_class__update_sigma(dW)
 
-            # update forcing and carry out time-step
-            self.qg_class._base_class__update_u()  # if one wants to specify u, replace line
+                # update forcing and carry out time-step
+                self.qg_class._base_class__update_u()  # if one wants to specify u, replace line
+
             self.qg_class._base_class__update_q_forced()
             self.qg_class.timestep()
 
@@ -370,9 +374,9 @@ class two_level_quasi_geostrophic(object):
                     # inject onto coarse u
                     inject(self.qg_class_f.u_, self.qg_class_c.u_)
 
-                    # update both forcing
-                    self.qg_class_c._base_class__update_q_forced()
-                    self.qg_class_f._base_class__update_q_forced()
+                # update both forcing
+                self.qg_class_c._base_class__update_q_forced()
+                self.qg_class_f._base_class__update_q_forced()
 
                 # timestep
                 self.qg_class_c.timestep()
@@ -403,8 +407,8 @@ class two_level_quasi_geostrophic(object):
                     self.aggregate_u.assign(0)
                     self.aggregate_u.assign(self.aggregate_u + self.qg_class_f.u_)
 
-                    # update forcing
-                    self.qg_class_f._base_class__update_q_forced()
+                # update forcing
+                self.qg_class_f._base_class__update_q_forced()
 
                 # time-step
                 self.qg_class_f.timestep()
@@ -438,9 +442,9 @@ class two_level_quasi_geostrophic(object):
                     # inject onto coarse u
                     inject(self.aggregate_u, self.qg_class_c.u_)
 
-                    # update both forcing
-                    self.qg_class_c._base_class__update_q_forced()
-                    self.qg_class_f._base_class__update_q_forced()
+                # update both forcing
+                self.qg_class_c._base_class__update_q_forced()
+                self.qg_class_f._base_class__update_q_forced()
 
                 # timestep
                 self.qg_class_c.timestep()
