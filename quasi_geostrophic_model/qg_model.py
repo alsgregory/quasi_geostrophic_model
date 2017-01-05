@@ -68,6 +68,12 @@ class base_class(object):
         self.F = Constant(1.0)
         self.beta = Constant(0.1)
 
+        # set-up ou forcing parameters
+        self.theta = 2.0
+
+        # set-up ou process
+        self.sigma = 0.0
+
         # define perpendicular grad
         self.gradperp = lambda u: as_vector((-u.dx(1), u.dx(0)))
 
@@ -127,23 +133,27 @@ class base_class(object):
         self.hlhs = self.dw * self.v * dx
         self.hrhs = (dot(grad(self.v), grad(self.u)) + self.v * self.u) * dx
 
+    def __update_sigma(self, dW):
+
+        # time-step ou process
+        self.sigma += -(self.theta * (self.const_dt.dat.data[0] * self.sigma)) + dW
+
     def __update_u(self):
 
-        if self.variance > 0:
-            self.dw.dat.data[:] = (np.sqrt(self.const_dt.dat.data) *
-                                   np.random.normal(0, np.sqrt(self.variance),
-                                                    np.shape(self.dw.dat.data)))
-            self.u_.assign(0)
+        self.dw.dat.data[:] = (np.sqrt(self.const_dt.dat.data[0]) *
+                               np.random.normal(0, 1.0,
+                                                np.shape(self.dw.dat.data)))
+        self.u_.assign(0)
 
-            solve(self.hrhs == self.hlhs, self.u_,
-                  solver_parameters={'ksp_type': 'cg'})
+        solve(self.hrhs == self.hlhs, self.u_,
+              solver_parameters={'ksp_type': 'cg'})
 
     def __update_forcing(self):
 
-        if self.variance == 0:
-            self.forcing.assign(0)
-        else:
-            self.forcingProjector.project()
+        # scale with ou process
+        self.u_.dat.data[:] = self.u_.dat.data[:] * self.sigma
+
+        self.forcingProjector.project()
 
     def __update_q_forced(self):
 
@@ -185,7 +195,7 @@ class quasi_geostrophic(object):
             :arg cg_fs: The continuous :class:`FunctionSpace` used for the Streamfunction
             :type cg_fs: :class:`FunctionSpace`
 
-            :arg variance: Variance of random forcing
+            :arg variance: Variance of ou process controlling magnitude of random forcing
             :type variance: int, if zero, forcing is off
 
         """
@@ -229,7 +239,14 @@ class quasi_geostrophic(object):
             else:
                 self.qg_class.const_dt.assign(self.dt)
 
-            # carry out timesteps and update forcing separately
+            if self.variance > 0:
+                # update ou process
+                dW = (np.sqrt(self.qg_class.const_dt.dat.data[0]) *
+                      np.random.normal(0, np.sqrt(self.variance), 1)[0])
+                self.qg_class._base_class__update_sigma(dW)
+                print self.qg_class.sigma
+
+            # update forcing and carry out time-step
             self.qg_class._base_class__update_u()  # if one wants to specify u, replace line
             self.qg_class._base_class__update_q_forced()
             self.qg_class.timestep()
@@ -263,7 +280,7 @@ class two_level_quasi_geostrophic(object):
                           on the fine level
             :type cg_fs_f: :class:`FunctionSpace`
 
-            :arg variance: Variance of correlated random forcing
+            :arg variance: Variance of ou process controlling magnitude of random forcing
             :type variance: int, if zero, forcing is off
 
         """
@@ -339,15 +356,24 @@ class two_level_quasi_geostrophic(object):
 
                 # do one solve for each and update time
 
-                # update fine u
-                self.qg_class_f._base_class__update_u()
+                if self.variance > 0:
+                    # compute random increment for ou process
+                    dW = (np.sqrt(self.qg_class_f.const_dt.dat.data[0]) *
+                          np.random.normal(0, np.sqrt(self.variance), 1)[0])
 
-                # inject onto coarse u
-                inject(self.qg_class_f.u_, self.qg_class_c.u_)
+                    # update ou processes
+                    self.qg_class_c._base_class__update_sigma(dW)
+                    self.qg_class_f._base_class__update_sigma(dW)
 
-                # update both forcing
-                self.qg_class_c._base_class__update_q_forced()
-                self.qg_class_f._base_class__update_q_forced()
+                    # update fine u
+                    self.qg_class_f._base_class__update_u()
+
+                    # inject onto coarse u
+                    inject(self.qg_class_f.u_, self.qg_class_c.u_)
+
+                    # update both forcing
+                    self.qg_class_c._base_class__update_q_forced()
+                    self.qg_class_f._base_class__update_q_forced()
 
                 # timestep
                 self.qg_class_c.timestep()
@@ -365,13 +391,23 @@ class two_level_quasi_geostrophic(object):
 
                 # solve one fine then one fine and coarse
 
-                # update fine u
-                self.qg_class_f._base_class__update_u()
-                self.aggregate_u.assign(0)
-                self.aggregate_u.assign(self.aggregate_u + self.qg_class_f.u_)
+                if self.variance > 0:
+                    # update fine ou process and aggregate increments
+                    dWc = 0
+                    dW = (np.sqrt(self.qg_class_f.const_dt.dat.data[0]) *
+                          np.random.normal(0, np.sqrt(self.variance), 1)[0])
+                    dWc += dW
+                    self.qg_class_f._base_class__update_sigma(dW)
 
-                # update forcing and time-step
-                self.qg_class_f._base_class__update_q_forced()
+                    # update fine u
+                    self.qg_class_f._base_class__update_u()
+                    self.aggregate_u.assign(0)
+                    self.aggregate_u.assign(self.aggregate_u + self.qg_class_f.u_)
+
+                    # update forcing
+                    self.qg_class_f._base_class__update_q_forced()
+
+                # time-step
                 self.qg_class_f.timestep()
 
                 self.__t_f += self.qg_class_f.const_dt.dat.data[0]
@@ -388,16 +424,27 @@ class two_level_quasi_geostrophic(object):
                     self.qg_class_c.const_dt.assign(self.dt_c)
                     self.qg_class_f.const_dt.assign(self.dt_f)
 
-                # update fine u
-                self.qg_class_f._base_class__update_u()
-                self.aggregate_u.assign(self.aggregate_u + self.qg_class_f.u_)
+                if self.variance > 0:
+                    # update fine and coarse ou process and aggregate increments
+                    dW = (np.sqrt(self.qg_class_f.const_dt.dat.data[0]) *
+                          np.random.normal(0, np.sqrt(self.variance), 1)[0])
+                    dWc += dW
+                    self.qg_class_c._base_class__update_sigma(dWc)
+                    self.qg_class_f._base_class__update_sigma(dW)
+                    print self.qg_class_c.sigma
+                    print self.qg_class_f.sigma
+                    print '----'
 
-                # inject onto coarse u
-                inject(self.aggregate_u, self.qg_class_c.u_)
+                    # update fine u
+                    self.qg_class_f._base_class__update_u()
+                    self.aggregate_u.assign(self.aggregate_u + self.qg_class_f.u_)
 
-                # update both forcing
-                self.qg_class_c._base_class__update_q_forced()
-                self.qg_class_f._base_class__update_q_forced()
+                    # inject onto coarse u
+                    inject(self.aggregate_u, self.qg_class_c.u_)
+
+                    # update both forcing
+                    self.qg_class_c._base_class__update_q_forced()
+                    self.qg_class_f._base_class__update_q_forced()
 
                 # timestep
                 self.qg_class_c.timestep()

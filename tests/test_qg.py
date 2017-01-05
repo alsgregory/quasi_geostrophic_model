@@ -123,26 +123,44 @@ def test_correct_fs():
         assert dg_fs == QG.q_.function_space()
 
 
-def test_forcing_var():
+def test_update_sigma():
 
     mesh = SquareMesh(1, 1, 2)
-    n = 500
 
     dg_fs = FunctionSpace(mesh, 'DG', 0)
     cg_fs = FunctionSpace(mesh, 'CG', 1)
 
-    var = 0.015
+    var = 1.0
 
     QG = quasi_geostrophic(dg_fs, cg_fs, var)
 
-    sample_forcing = np.zeros(n)
+    n = 50
+    s = 0.0
     for i in range(n):
-        QG.qg_class._base_class__update_u()
-        QG.qg_class._base_class__update_forcing()
-        sample_forcing[i] = QG.qg_class.dw.dat.data[0]
+        QG.timestepper(i + 1)
 
-    assert np.abs((var * QG.qg_class.const_dt.dat.data) -
-                  np.var(sample_forcing)) < 1e-2
+        assert np.abs(s - QG.qg_class.sigma) > 0.0
+        s = float(QG.qg_class.sigma)
+
+
+def test_zero_sigma():
+
+    mesh = SquareMesh(1, 1, 2)
+
+    dg_fs = FunctionSpace(mesh, 'DG', 0)
+    cg_fs = FunctionSpace(mesh, 'CG', 1)
+
+    var = 0.0
+
+    QG = quasi_geostrophic(dg_fs, cg_fs, var)
+
+    n = 50
+    s = 0.0
+    for i in range(n):
+        QG.timestepper(i + 1)
+
+        assert np.abs(s - QG.qg_class.sigma) < 1e-5
+        s = float(QG.qg_class.sigma)
 
 
 def test_random_q():
