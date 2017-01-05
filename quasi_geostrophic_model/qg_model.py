@@ -244,7 +244,6 @@ class quasi_geostrophic(object):
                 dW = (np.sqrt(self.qg_class.const_dt.dat.data[0]) *
                       np.random.normal(0, np.sqrt(self.variance), 1)[0])
                 self.qg_class._base_class__update_sigma(dW)
-                print self.qg_class.sigma
 
             # update forcing and carry out time-step
             self.qg_class._base_class__update_u()  # if one wants to specify u, replace line
@@ -431,9 +430,6 @@ class two_level_quasi_geostrophic(object):
                     dWc += dW
                     self.qg_class_c._base_class__update_sigma(dWc)
                     self.qg_class_f._base_class__update_sigma(dW)
-                    print self.qg_class_c.sigma
-                    print self.qg_class_f.sigma
-                    print '----'
 
                     # update fine u
                     self.qg_class_f._base_class__update_u()
