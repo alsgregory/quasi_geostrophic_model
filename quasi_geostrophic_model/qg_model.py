@@ -140,7 +140,9 @@ class base_class(object):
 
     def __update_u(self):
 
-        self.dw.dat.data[:] = np.random.normal(0, 1.0, np.shape(self.dw.dat.data))
+        self.dw.dat.data[:] = (np.sqrt(self.const_dt.dat.data[0]) *
+                               np.random.normal(0, 1.0,
+                                                np.shape(self.dw.dat.data)))
         self.u_.assign(0)
 
         solve(self.hrhs == self.hlhs, self.u_,
