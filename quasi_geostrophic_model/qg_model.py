@@ -48,7 +48,7 @@ class base_class(object):
         self.psi_ = Function(self.Vcg)  # actual streamfunction
         self.q_old = Function(self.Vdg)  # last time-step q
         self.dq = Function(self.Vdg)  # intermediate q for inter - RK steps
-        self.q_forced = Function(self.Vdg)  # forcing q to invert streamfunction
+        self.psi_forced = Function(self.Vcg)  # inverted streamfunction for forced q
         self.forcing = Function(self.Vdg)  # forcing
 
         # solver functions
@@ -57,12 +57,10 @@ class base_class(object):
         self.q = TrialFunction(self.Vdg)
         self.p = TestFunction(self.Vdg)
 
-        # helmholtz solver functions and projections
-        self.u = TrialFunction(self.Vcg)
-        self.u_ = Function(self.Vcg)
-        self.v = TestFunction(self.Vcg)
-        self.dw = Function(self.Vcg)
-        self.forcingProjector = Projector(self.u_, self.forcing)
+        # spatial scaling functions
+        v = TestFunction(self.Vdg)
+        onesf = Function(self.Vdg).assign(1.0)
+        self.spatial_scaling = assemble(v * onesf * dx)
 
         # set-up constants
         self.F = Constant(1.0)
@@ -94,7 +92,8 @@ class base_class(object):
                       inner(grad(self.psi), grad(self.phi)) -
                       self.beta * self.phi * self.psi.dx(1)) *
                      dx)
-        self.Lpsi = -self.q_forced * self.phi * dx
+        self.Lpsi = -self.q_old * self.phi * dx
+        self.forcingLpsi = -self.forcing * self.phi * dx
 
         # boundary conditions
         self.bc = [DirichletBC(self.Vcg, 0., 1),
@@ -103,10 +102,15 @@ class base_class(object):
                    DirichletBC(self.Vcg, 0., 4)]
 
         self.psi_problem = LinearVariationalProblem(self.Apsi, self.Lpsi, self.psi_, bcs=self.bc)
+        self.forcingpsi_problem = LinearVariationalProblem(self.Apsi, self.forcingLpsi,
+                                                           self.psi_forced, bcs=self.bc)
 
         self.psi_solver = LinearVariationalSolver(self.psi_problem,
                                                   solver_parameters={'ksp_type': 'cg',
                                                                      'pc_type': 'sor'})
+        self.forcingpsi_solver = LinearVariationalSolver(self.forcingpsi_problem,
+                                                         solver_parameters={'ksp_type': 'cg',
+                                                                            'pc_type': 'sor'})
 
         self.n = FacetNormal(self.mesh)
         self.un = 0.5 * (dot(self.gradperp(self.psi_), self.n) +
@@ -129,39 +133,28 @@ class base_class(object):
                                                 solver_parameters={'ksp_type': 'cg',
                                                                    'pc_type': 'sor'})
 
-        # setup helmholtz solver for forcing
-        self.hlhs = self.dw * self.v * dx
-        self.hrhs = (dot(grad(self.v), grad(self.u)) + self.v * self.u) * dx
-
     def __update_sigma(self, dW):
 
         # time-step ou process
         self.sigma += -(self.theta * (self.const_dt.dat.data[0] * self.sigma)) + dW
 
-    def __update_u(self):
-
-        self.dw.dat.data[:] = (np.sqrt(self.const_dt.dat.data[0]) *
-                               np.random.normal(0, 1.0,
-                                                np.shape(self.dw.dat.data)))
-        self.u_.assign(0)
-
-        solve(self.hrhs == self.hlhs, self.u_,
-              solver_parameters={'ksp_type': 'cg'})
-
     def __update_forcing(self):
 
-        # scale with ou process
-        self.u_.dat.data[:] = self.u_.dat.data[:] * self.sigma
+        # scale with ou process and spatial scaling
+        self.forcing.dat.data[:] = (np.sqrt(self.const_dt.dat.data[0]) *
+                                    np.random.normal(0, 1.0,
+                                                     np.shape(self.forcing.dat.data))) * self.sigma
+        self.forcing.assign(self.forcing * sqrt(self.spatial_scaling))
 
-        self.forcingProjector.project()
+        # solve for streamfunction
+        self.forcingpsi_solver.solve()
 
-    def __update_q_forced(self):
+    def __update_psi_forced(self):
 
         if self.variance == 0:
-            self.q_forced.assign(self.q_old)
+            self.psi_.assign(self.psi_)
         else:
-            self.__update_forcing()
-            self.q_forced.assign(self.forcing + self.q_old)
+            self.psi_.assign(self.psi_ + self.psi_forced)
 
     def timestep(self):
 
@@ -170,16 +163,19 @@ class base_class(object):
 
         # 1st RK step
         self.psi_solver.solve()
+        self.__update_psi_forced()
         self.q_solver.solve()
         self.q_old.assign(self.dq)
 
         # 2nd RK step
         self.psi_solver.solve()
+        self.__update_psi_forced()
         self.q_solver.solve()
         self.q_old.assign(((3.0 / 4.0) * self.q_) + ((1.0 / 4.0) * self.dq))
 
         # 3rd RK step
         self.psi_solver.solve()
+        self.__update_psi_forced()
         self.q_solver.solve()
         self.q_.assign(((1.0 / 3.0) * self.q_) + ((2.0 / 3.0) * self.dq))
 
@@ -249,9 +245,8 @@ class quasi_geostrophic(object):
                 self.qg_class._base_class__update_sigma(dW)
 
                 # update forcing and carry out time-step
-                self.qg_class._base_class__update_u()  # if one wants to specify u, replace line
+                self.qg_class._base_class__update_forcing()
 
-            self.qg_class._base_class__update_q_forced()
             self.qg_class.timestep()
 
             # update time
@@ -310,8 +305,8 @@ class two_level_quasi_geostrophic(object):
         self.dt_c = self.qg_class_c.dt
         self.dt_f = self.qg_class_f.dt
 
-        # build a Function for aggregate u forcing from fine
-        self.aggregate_u = Function(self.qg_class_f.Vcg)
+        # build a Function for aggregate psi forcing from fine
+        self.aggregate_psi_forced = Function(self.qg_class_f.Vcg)
 
         # check for refinement in time-steps
         if self.mesh_hierarchy.refinements_per_level is not 1:
@@ -368,15 +363,11 @@ class two_level_quasi_geostrophic(object):
                     self.qg_class_c._base_class__update_sigma(dW)
                     self.qg_class_f._base_class__update_sigma(dW)
 
-                    # update fine u
-                    self.qg_class_f._base_class__update_u()
+                    # update fine forcing
+                    self.qg_class_f._base_class__update_forcing()
 
-                    # inject onto coarse u
-                    inject(self.qg_class_f.u_, self.qg_class_c.u_)
-
-                # update both forcing
-                self.qg_class_c._base_class__update_q_forced()
-                self.qg_class_f._base_class__update_q_forced()
+                    # inject onto coarse psi_forced
+                    inject(self.qg_class_f.psi_forced, self.qg_class_c.psi_forced)
 
                 # timestep
                 self.qg_class_c.timestep()
@@ -402,13 +393,11 @@ class two_level_quasi_geostrophic(object):
                     dWc += dW
                     self.qg_class_f._base_class__update_sigma(dW)
 
-                    # update fine u
-                    self.qg_class_f._base_class__update_u()
-                    self.aggregate_u.assign(0)
-                    self.aggregate_u.assign(self.aggregate_u + self.qg_class_f.u_)
-
-                # update forcing
-                self.qg_class_f._base_class__update_q_forced()
+                    # update fine forcing
+                    self.qg_class_f._base_class__update_forcing()
+                    self.aggregate_psi_forced.assign(0)
+                    self.aggregate_psi_forced.assign(self.aggregate_psi_forced +
+                                                     self.qg_class_f.psi_forced)
 
                 # time-step
                 self.qg_class_f.timestep()
@@ -435,16 +424,13 @@ class two_level_quasi_geostrophic(object):
                     self.qg_class_c._base_class__update_sigma(dWc)
                     self.qg_class_f._base_class__update_sigma(dW)
 
-                    # update fine u
-                    self.qg_class_f._base_class__update_u()
-                    self.aggregate_u.assign(self.aggregate_u + self.qg_class_f.u_)
+                    # update fine forcing
+                    self.qg_class_f._base_class__update_forcing()
+                    self.aggregate_psi_forced.assign(self.aggregate_psi_forced +
+                                                     self.qg_class_f.psi_forced)
 
-                    # inject onto coarse u
-                    inject(self.aggregate_u, self.qg_class_c.u_)
-
-                # update both forcing
-                self.qg_class_c._base_class__update_q_forced()
-                self.qg_class_f._base_class__update_q_forced()
+                    # inject onto coarse psi_forced
+                    inject(self.aggregate_psi_forced, self.qg_class_c.psi_forced)
 
                 # timestep
                 self.qg_class_c.timestep()

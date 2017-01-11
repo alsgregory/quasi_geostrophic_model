@@ -23,10 +23,11 @@ def test_two_level_random_u_c():
     ts = np.linspace(1, 3, 3)
     for i in range(len(ts)):
         QG.timestepper(ts[i])
-        assert np.all(QG.qg_class_c.u_.dat.data != np.zeros(len(QG.qg_class_c.u_.dat.data)))
+        assert np.any(QG.qg_class_c.psi_forced.dat.data !=
+                      np.zeros(len(QG.qg_class_c.psi_forced.dat.data)))
         if i > 0:
-            assert np.all(QG.qg_class_c.u_.dat.data != u_)
-        u_ = np.copy(QG.qg_class_c.u_.dat.data)
+            assert np.any(QG.qg_class_c.psi_forced.dat.data != u_)
+        u_ = np.copy(QG.qg_class_c.psi_forced.dat.data)
 
 
 def test_zero_solution_both_psi_and_q():
