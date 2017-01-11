@@ -48,7 +48,7 @@ class base_class(object):
         self.psi_ = Function(self.Vcg)  # actual streamfunction
         self.q_old = Function(self.Vdg)  # last time-step q
         self.dq = Function(self.Vdg)  # intermediate q for inter - RK steps
-        self.psi_forced = Function(self.Vcg)  # forcing q to invert streamfunction
+        self.psi_forced = Function(self.Vcg)  # inverted streamfunction for forced q
         self.forcing = Function(self.Vdg)  # forcing
 
         # solver functions
