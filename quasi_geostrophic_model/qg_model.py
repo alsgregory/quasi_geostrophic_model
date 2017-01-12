@@ -57,11 +57,6 @@ class base_class(object):
         self.q = TrialFunction(self.Vdg)
         self.p = TestFunction(self.Vdg)
 
-        # spatial scaling functions
-        v = TestFunction(self.Vdg)
-        onesf = Function(self.Vdg).assign(1.0)
-        self.spatial_scaling = assemble(v * onesf * dx)
-
         # set-up constants
         self.F = Constant(1.0)
         self.beta = Constant(0.1)
@@ -140,11 +135,10 @@ class base_class(object):
 
     def __update_forcing(self):
 
-        # scale with ou process and spatial scaling
+        # scale with ou process
         self.forcing.dat.data[:] = (np.sqrt(self.const_dt.dat.data[0]) *
                                     np.random.normal(0, 1.0,
                                                      np.shape(self.forcing.dat.data))) * self.sigma
-        self.forcing.assign(self.forcing * sqrt(self.spatial_scaling))
 
         # solve for streamfunction
         self.forcingpsi_solver.solve()
