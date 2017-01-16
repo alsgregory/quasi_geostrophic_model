@@ -1,4 +1,4 @@
-""" Random inifinite dimensional initial condition for QG system """
+""" Random infinite dimensional initial condition for QG system """
 
 from __future__ import division, absolute_import
 
