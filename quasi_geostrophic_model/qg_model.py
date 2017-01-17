@@ -65,7 +65,7 @@ class base_class(object):
         self.theta = 2.0
 
         # set-up ou process
-        self.sigma = 0.0
+        self.sigma = 1.0
 
         # define perpendicular grad
         self.gradperp = lambda u: as_vector((-u.dx(1), u.dx(0)))
@@ -75,10 +75,20 @@ class base_class(object):
 
         super(base_class, self).__init__()
 
-    def initial_condition(self, ufl_expression):
+    def initial_condition(self, ufl_expression, var):
 
-        # interpolate expression
-        self.q_.interpolate(ufl_expression)
+        # scale forcing to psi
+        self.psi_forced.assign(self.psi_forced * (var / np.sqrt(self.const_dt.dat.data[0])))
+
+        # add it psi
+        self.psi_.assign(self.psi_forced)
+
+        # interpolate structured expression for q and solve for q
+        self.q_old.interpolate(ufl_expression)
+        self.q_solver.solve()
+
+        # update q_
+        self.q_.assign(self.dq)
 
     def setup_solver(self):
 
@@ -207,13 +217,16 @@ class quasi_geostrophic(object):
 
         super(quasi_geostrophic, self).__init__()
 
-    def initial_condition(self, ufl_expression):
+    def initial_condition(self, ufl_expression, var=0.0):
 
         # check for initial time
         if self.t != 0:
             raise ValueError("can't set initial condition when time is not zero")
 
-        self.qg_class.initial_condition(ufl_expression)
+        # update forcing
+        self.qg_class._base_class__update_forcing()
+
+        self.qg_class.initial_condition(ufl_expression, var)
 
     def timestepper(self, T):
 
@@ -320,14 +333,18 @@ class two_level_quasi_geostrophic(object):
 
         super(two_level_quasi_geostrophic, self).__init__()
 
-    def initial_condition(self, ufl_expression_c, ufl_expression_f):
+    def initial_condition(self, ufl_expression_c, ufl_expression_f, var=0.0):
 
         # check for initial time
         if self.t != 0:
             raise ValueError("can't set initial condition when time is not zero")
 
-        self.qg_class_c.initial_condition(ufl_expression_c)
-        self.qg_class_f.initial_condition(ufl_expression_f)
+        # update forcing on fine and inject down to coarse
+        self.qg_class_f._base_class__update_forcing()
+        inject(self.qg_class_f.psi_forced, self.qg_class_c.psi_forced)
+
+        self.qg_class_c.initial_condition(ufl_expression_c, var)
+        self.qg_class_f.initial_condition(ufl_expression_f, var)
 
     def timestepper(self, T):
 
