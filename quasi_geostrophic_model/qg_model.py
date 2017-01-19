@@ -67,6 +67,11 @@ class base_class(object):
         # set-up ou process
         self.sigma = 1.0
 
+        # spatial scaling constant
+        v = TestFunction(self.Vcg)
+        ones = Function(self.Vcg).assign(1)
+        self.ml = assemble(v * ones * dx)
+
         # define perpendicular grad
         self.gradperp = lambda u: as_vector((-u.dx(1), u.dx(0)))
 
@@ -223,10 +228,14 @@ class quasi_geostrophic(object):
         if self.t != 0:
             raise ValueError("can't set initial condition when time is not zero")
 
-        # update forcing
-        self.qg_class._base_class__update_forcing()
+        if var == 0:
+            self.qg_class.q_.interpolate(ufl_expression)
+        else:
+            # update forcing
+            self.qg_class._base_class__update_forcing()
+            self.qg_class.psi_forced.assign(self.qg_class.psi_forced / sqrt(self.qg_class.ml))
 
-        self.qg_class.initial_condition(ufl_expression, var)
+            self.qg_class.initial_condition(ufl_expression, var)
 
     def timestepper(self, T):
 
@@ -253,6 +262,7 @@ class quasi_geostrophic(object):
 
                 # update forcing and carry out time-step
                 self.qg_class._base_class__update_forcing()
+                self.qg_class.psi_forced.assign(self.qg_class.psi_forced / sqrt(self.qg_class.ml))
 
             self.qg_class.timestep()
 
@@ -339,12 +349,20 @@ class two_level_quasi_geostrophic(object):
         if self.t != 0:
             raise ValueError("can't set initial condition when time is not zero")
 
-        # update forcing on fine and inject down to coarse
-        self.qg_class_f._base_class__update_forcing()
-        inject(self.qg_class_f.psi_forced, self.qg_class_c.psi_forced)
+        if var == 0:
+            self.qg_class_c.q_.interpolate(ufl_expression_c)
+            self.qg_class_f.q_.interpolate(ufl_expression_f)
+        else:
+            # update forcing on fine and inject down to coarse
+            self.qg_class_f._base_class__update_forcing()
+            self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced / sqrt(self.qg_class_f.ml))
+            inject(self.qg_class_f.psi_forced, self.qg_class_c.psi_forced)
 
-        self.qg_class_c.initial_condition(ufl_expression_c, var)
-        self.qg_class_f.initial_condition(ufl_expression_f, var)
+            # update coarse timestep to match finer one for just the one initial condition solve
+            self.qg_class_c.const_dt.assign(self.qg_class_f.const_dt)
+
+            self.qg_class_c.initial_condition(ufl_expression_c, var)
+            self.qg_class_f.initial_condition(ufl_expression_f, var)
 
     def timestepper(self, T):
 
@@ -376,6 +394,8 @@ class two_level_quasi_geostrophic(object):
 
                     # update fine forcing
                     self.qg_class_f._base_class__update_forcing()
+                    self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced /
+                                                      sqrt(self.qg_class_f.ml))
 
                     # inject onto coarse psi_forced
                     inject(self.qg_class_f.psi_forced, self.qg_class_c.psi_forced)
@@ -406,6 +426,8 @@ class two_level_quasi_geostrophic(object):
 
                     # update fine forcing
                     self.qg_class_f._base_class__update_forcing()
+                    self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced /
+                                                      sqrt(self.qg_class_f.ml))
                     self.aggregate_psi_forced.assign(0)
                     self.aggregate_psi_forced.assign(self.aggregate_psi_forced +
                                                      self.qg_class_f.psi_forced)
@@ -437,6 +459,8 @@ class two_level_quasi_geostrophic(object):
 
                     # update fine forcing
                     self.qg_class_f._base_class__update_forcing()
+                    self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced /
+                                                      sqrt(self.qg_class_f.ml))
                     self.aggregate_psi_forced.assign(self.aggregate_psi_forced +
                                                      self.qg_class_f.psi_forced)
 
