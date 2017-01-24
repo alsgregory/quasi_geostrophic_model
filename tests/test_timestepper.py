@@ -141,6 +141,46 @@ def test_zero_time():
     assert np.max(np.abs(QG.q_.dat.data - f.dat.data)) < 1e-5
 
 
+def test_timestep_ic_solve():
+
+    mesh = UnitSquareMesh(2, 2)
+    dg_fs = FunctionSpace(mesh, 'DG', 0)
+    cg_fs = FunctionSpace(mesh, 'CG', 1)
+
+    var = 0.0
+
+    x = SpatialCoordinate(mesh)
+    ufl_expression = sin(2 * pi * x[0])
+
+    QG = quasi_geostrophic(dg_fs, cg_fs, var)
+    QG.initial_condition(ufl_expression, 1.0)
+
+    assert QG.qg_class.const_dt.dat.data[0] == 1e-3
+
+
+def test_timestep_ic_solve_two():
+
+    mesh = UnitSquareMesh(2, 2)
+    mesh_hierarchy = MeshHierarchy(mesh, 1)
+    dg_fs_c = FunctionSpace(mesh_hierarchy[0], 'DG', 0)
+    cg_fs_c = FunctionSpace(mesh_hierarchy[0], 'CG', 1)
+    dg_fs_f = FunctionSpace(mesh_hierarchy[1], 'DG', 0)
+    cg_fs_f = FunctionSpace(mesh_hierarchy[1], 'CG', 1)
+
+    var = 0.0
+
+    x = SpatialCoordinate(mesh_hierarchy[0])
+    ufl_expression_c = sin(2 * pi * x[0])
+    x = SpatialCoordinate(mesh_hierarchy[1])
+    ufl_expression_f = sin(2 * pi * x[0])
+
+    QG = two_level_quasi_geostrophic(dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, var)
+    QG.initial_condition(ufl_expression_c, ufl_expression_f, 1.0)
+
+    assert QG.qg_class_c.const_dt.dat.data[0] == 1e-3
+    assert QG.qg_class_f.const_dt.dat.data[0] == 1e-3
+
+
 if __name__ == "__main__":
     import os
     import pytest

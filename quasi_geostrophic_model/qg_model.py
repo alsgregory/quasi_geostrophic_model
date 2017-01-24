@@ -90,6 +90,8 @@ class base_class(object):
 
         # interpolate structured expression for q and solve for q
         self.q_old.interpolate(ufl_expression)
+
+        # solve for q
         self.q_solver.solve()
 
         # update q_
@@ -231,6 +233,9 @@ class quasi_geostrophic(object):
         if var == 0:
             self.qg_class.q_.interpolate(ufl_expression)
         else:
+            # edit constant time-step for initial condition solve
+            self.qg_class.const_dt.assign(1e-3)
+
             # update forcing
             self.qg_class._base_class__update_forcing()
             self.qg_class.psi_forced.assign(self.qg_class.psi_forced / sqrt(self.qg_class.ml))
@@ -353,13 +358,14 @@ class two_level_quasi_geostrophic(object):
             self.qg_class_c.q_.interpolate(ufl_expression_c)
             self.qg_class_f.q_.interpolate(ufl_expression_f)
         else:
+            # edit constant time-step for initial condition solve
+            self.qg_class_c.const_dt.assign(1e-3)
+            self.qg_class_f.const_dt.assign(1e-3)
+
             # update forcing on fine and inject down to coarse
             self.qg_class_f._base_class__update_forcing()
             self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced / sqrt(self.qg_class_f.ml))
             inject(self.qg_class_f.psi_forced, self.qg_class_c.psi_forced)
-
-            # update coarse timestep to match finer one for just the one initial condition solve
-            self.qg_class_c.const_dt.assign(self.qg_class_f.const_dt)
 
             self.qg_class_c.initial_condition(ufl_expression_c, var)
             self.qg_class_f.initial_condition(ufl_expression_f, var)
