@@ -68,8 +68,8 @@ class base_class(object):
         self.sigma = 1.0
 
         # spatial scaling constant
-        v = TestFunction(self.Vcg)
-        ones = Function(self.Vcg).assign(1)
+        v = TestFunction(self.Vdg)
+        ones = Function(self.Vdg).assign(1)
         self.ml = assemble(v * ones * dx)
 
         # define perpendicular grad
@@ -157,6 +157,9 @@ class base_class(object):
                                     np.random.normal(0, 1.0,
                                                      np.shape(self.forcing.dat.data))) * self.sigma
 
+        # spatially scale
+        self.forcing.assign(self.forcing / sqrt(self.ml))
+
         # solve for streamfunction
         self.forcingpsi_solver.solve()
 
@@ -238,7 +241,7 @@ class quasi_geostrophic(object):
 
             # update forcing
             self.qg_class._base_class__update_forcing()
-            self.qg_class.psi_forced.assign(self.qg_class.psi_forced / sqrt(self.qg_class.ml))
+            self.qg_class.psi_forced.assign(self.qg_class.psi_forced)
 
             self.qg_class.initial_condition(ufl_expression, var)
 
@@ -267,7 +270,7 @@ class quasi_geostrophic(object):
 
                 # update forcing and carry out time-step
                 self.qg_class._base_class__update_forcing()
-                self.qg_class.psi_forced.assign(self.qg_class.psi_forced / sqrt(self.qg_class.ml))
+                self.qg_class.psi_forced.assign(self.qg_class.psi_forced)
 
             self.qg_class.timestep()
 
@@ -364,7 +367,7 @@ class two_level_quasi_geostrophic(object):
 
             # update forcing on fine and inject down to coarse
             self.qg_class_f._base_class__update_forcing()
-            self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced / sqrt(self.qg_class_f.ml))
+            self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced)
             inject(self.qg_class_f.psi_forced, self.qg_class_c.psi_forced)
 
             self.qg_class_c.initial_condition(ufl_expression_c, var)
@@ -400,8 +403,7 @@ class two_level_quasi_geostrophic(object):
 
                     # update fine forcing
                     self.qg_class_f._base_class__update_forcing()
-                    self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced /
-                                                      sqrt(self.qg_class_f.ml))
+                    self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced)
 
                     # inject onto coarse psi_forced
                     inject(self.qg_class_f.psi_forced, self.qg_class_c.psi_forced)
@@ -432,8 +434,7 @@ class two_level_quasi_geostrophic(object):
 
                     # update fine forcing
                     self.qg_class_f._base_class__update_forcing()
-                    self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced /
-                                                      sqrt(self.qg_class_f.ml))
+                    self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced)
                     self.aggregate_psi_forced.assign(0)
                     self.aggregate_psi_forced.assign(self.aggregate_psi_forced +
                                                      self.qg_class_f.psi_forced)
@@ -465,8 +466,7 @@ class two_level_quasi_geostrophic(object):
 
                     # update fine forcing
                     self.qg_class_f._base_class__update_forcing()
-                    self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced /
-                                                      sqrt(self.qg_class_f.ml))
+                    self.qg_class_f.psi_forced.assign(self.qg_class_f.psi_forced)
                     self.aggregate_psi_forced.assign(self.aggregate_psi_forced +
                                                      self.qg_class_f.psi_forced)
 
