@@ -13,7 +13,7 @@ import matplotlib.pyplot as plot
 
 
 # define mesh hierarchy
-mesh = UnitSquareMesh(20, 20)
+mesh = UnitSquareMesh(5, 5)
 L = 4
 mesh_hierarchy = MeshHierarchy(mesh, L)
 
@@ -40,52 +40,61 @@ def ic(mesh):
 var = 0.0
 T = 20
 
-# find finest res solution
-dg_fs_finest = FunctionSpace(mesh_hierarchy[-1], 'DG', 1)
-cg_fs_finest = FunctionSpace(mesh_hierarchy[-1], 'CG', 1)
-QG_finest = quasi_geostrophic(dg_fs_finest, cg_fs_finest, var)
-QG_finest.initial_condition(ic(mesh_hierarchy[-1]))
-QG_finest.timestepper(T)
-comp_q = QG_finest.q_
-comp_psi = QG_finest.psi_
+# preallocate error
+error_q = np.zeros((2, L))
+error_psi = np.zeros((2, L))
 
-# preallocate error and functions to project coarser solutions to
-error_q = np.zeros(L)
-error_psi = np.zeros(L)
-q_func_finest = Function(dg_fs_finest)
-psi_func_finest = Function(cg_fs_finest)
+# iterate over degree of potential vorticity
+for k in range(2):
 
-# preallocate dx array
-dxs = np.zeros(L)
+    # find finest res solution
+    dg_fs_finest = FunctionSpace(mesh_hierarchy[-1], 'DG', k)
+    cg_fs_finest = FunctionSpace(mesh_hierarchy[-1], 'CG', 1)
+    QG_finest = quasi_geostrophic(dg_fs_finest, cg_fs_finest, var)
+    QG_finest.initial_condition(ic(mesh_hierarchy[-1]))
+    QG_finest.timestepper(T)
+    comp_q = QG_finest.q_
+    comp_psi = QG_finest.psi_
 
-# iterate over resolutions
-for l in range(L):
+    # preallocate functions to project coarser solutions to
+    q_func_finest = Function(dg_fs_finest)
+    psi_func_finest = Function(cg_fs_finest)
 
-    # find dx for each level
-    dxs[l] = norm(MinDx(mesh_hierarchy[l]))
+    # preallocate dx array
+    dxs = np.zeros(L)
 
-    # define function spaces
-    dg_fs = FunctionSpace(mesh_hierarchy[l], 'DG', 1)
-    cg_fs = FunctionSpace(mesh_hierarchy[l], 'CG', 1)
+    # iterate over resolutions
+    for l in range(L):
 
-    # simulate solution on resolution
-    QG = quasi_geostrophic(dg_fs, cg_fs, var)
-    QG.initial_condition(ic(mesh_hierarchy[l]))
-    QG.timestepper(T)
+        # find dx for each level
+        dxs[l] = norm(MinDx(mesh_hierarchy[l]))
 
-    # project solution to finest mesh and calculate error
-    prolong(QG.q_, q_func_finest)
-    prolong(QG.psi_, psi_func_finest)
-    error_q[l] = norm(q_func_finest - comp_q)
-    error_psi[l] = norm(psi_func_finest - comp_psi)
+        # define function spaces
+        dg_fs = FunctionSpace(mesh_hierarchy[l], 'DG', k)
+        cg_fs = FunctionSpace(mesh_hierarchy[l], 'CG', 1)
 
-    print 'completed simulation on level: ', l
+        # simulate solution on resolution
+        QG = quasi_geostrophic(dg_fs, cg_fs, var)
+        QG.initial_condition(ic(mesh_hierarchy[l]))
+        QG.timestepper(T)
+
+        # project solution to finest mesh and calculate error
+        prolong(QG.q_, q_func_finest)
+        prolong(QG.psi_, psi_func_finest)
+        error_q[k, l] = norm(q_func_finest - comp_q)
+        error_psi[k, l] = norm(psi_func_finest - comp_psi)
+
+        print 'completed simulation of PV on level: ', l, ' with degree: ', k
 
 # plot convergence
-plot.loglog(dxs, error_q, 'r*-')
-plot.loglog(dxs, error_psi, 'y^-')
-plot.loglog(dxs, 1e1 * (dxs ** 2), 'k--')
+plot.loglog(dxs, error_psi[0, :], 'y^-')
+plot.loglog(dxs, error_q[0, :], 'r*-')
+plot.loglog(dxs, error_q[1, :], 'bo-')
+plot.loglog(dxs, 5e0 * (dxs ** 1), 'k')
+plot.loglog(dxs, 1e0 * (dxs ** 2), 'k--')
 plot.xlabel('dx')
 plot.ylabel('norm error')
-plot.legend(['potential vorticity', 'streamfunction', 'quadratic decay'])
+plot.legend(['streamfunction CG1', 'potential vorticity DG0',
+             'potential vorticity DG1',
+             'linear decay', 'quadratic decay'])
 plot.show()
