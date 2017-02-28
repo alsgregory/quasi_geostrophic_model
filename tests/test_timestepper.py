@@ -87,7 +87,7 @@ def test_adaptive_timestepper():
 
         var = 0.0
 
-        QG = quasi_geostrophic(dg_fs, cg_fs, var)
+        QG = quasi_geostrophic(dg_fs, cg_fs, var, adaptive_timestep=True)
         dt[i] = QG.dt
 
     assert np.abs((2 * dt[1]) - dt[0]) < 1e-5
@@ -110,7 +110,7 @@ def test_adaptive_timestepper_2():
 
         var = 0.0
 
-        QG = two_level_quasi_geostrophic(dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, var)
+        QG = two_level_quasi_geostrophic(dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, var, adaptive_timestep=True)
         dt_c[i] = QG.dt_c
         dt_f[i] = QG.dt_f
 
@@ -118,6 +118,33 @@ def test_adaptive_timestepper_2():
     assert np.abs((2 * dt_f[1]) - dt_f[0]) < 1e-5
     assert np.abs((2 * dt_f[0]) - dt_c[0]) < 1e-5
     assert np.abs((2 * dt_f[1]) - dt_c[1]) < 1e-5
+
+
+def test_adaptive_timestepper_off():
+
+    n = [2, 4]
+    dt_c = np.zeros(2)
+    dt_f = np.zeros(2)
+
+    for i in range(2):
+
+        mesh = UnitSquareMesh(n[i], n[i])
+        mesh_h = MeshHierarchy(mesh, 1)
+        dg_fs_c = FunctionSpace(mesh_h[0], 'DG', 0)
+        cg_fs_c = FunctionSpace(mesh_h[0], 'CG', 1)
+        dg_fs_f = FunctionSpace(mesh_h[1], 'DG', 0)
+        cg_fs_f = FunctionSpace(mesh_h[1], 'CG', 1)
+
+        var = 0.0
+
+        QG = two_level_quasi_geostrophic(dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, var)
+        dt_c[i] = QG.dt_c
+        dt_f[i] = QG.dt_f
+
+    assert np.abs(dt_c[1] - dt_c[0]) < 1e-5
+    assert np.abs(dt_f[1] - dt_f[0]) < 1e-5
+    assert np.abs(dt_f[0] - dt_c[0]) < 1e-5
+    assert np.abs(dt_f[1] - dt_c[1]) < 1e-5
 
 
 def test_zero_time():
@@ -139,46 +166,6 @@ def test_zero_time():
 
     assert QG.t == 0.0
     assert np.max(np.abs(QG.q_.dat.data - f.dat.data)) < 1e-5
-
-
-def test_timestep_ic_solve():
-
-    mesh = UnitSquareMesh(2, 2)
-    dg_fs = FunctionSpace(mesh, 'DG', 0)
-    cg_fs = FunctionSpace(mesh, 'CG', 1)
-
-    var = 0.0
-
-    x = SpatialCoordinate(mesh)
-    ufl_expression = sin(2 * pi * x[0])
-
-    QG = quasi_geostrophic(dg_fs, cg_fs, var)
-    QG.initial_condition(ufl_expression, 1.0)
-
-    assert QG.qg_class.const_dt.dat.data[0] == 1e-3
-
-
-def test_timestep_ic_solve_two():
-
-    mesh = UnitSquareMesh(2, 2)
-    mesh_hierarchy = MeshHierarchy(mesh, 1)
-    dg_fs_c = FunctionSpace(mesh_hierarchy[0], 'DG', 0)
-    cg_fs_c = FunctionSpace(mesh_hierarchy[0], 'CG', 1)
-    dg_fs_f = FunctionSpace(mesh_hierarchy[1], 'DG', 0)
-    cg_fs_f = FunctionSpace(mesh_hierarchy[1], 'CG', 1)
-
-    var = 0.0
-
-    x = SpatialCoordinate(mesh_hierarchy[0])
-    ufl_expression_c = sin(2 * pi * x[0])
-    x = SpatialCoordinate(mesh_hierarchy[1])
-    ufl_expression_f = sin(2 * pi * x[0])
-
-    QG = two_level_quasi_geostrophic(dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, var)
-    QG.initial_condition(ufl_expression_c, ufl_expression_f, 1.0)
-
-    assert QG.qg_class_c.const_dt.dat.data[0] == 1e-3
-    assert QG.qg_class_f.const_dt.dat.data[0] == 1e-3
 
 
 if __name__ == "__main__":

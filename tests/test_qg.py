@@ -7,49 +7,6 @@ import numpy as np
 from quasi_geostrophic_model import *
 
 
-def test_two_level_random_u_c():
-
-    mesh = UnitSquareMesh(2, 2)
-    mesh_h = MeshHierarchy(mesh, 1)
-    dg_fs_c = FunctionSpace(mesh_h[0], 'DG', 0)
-    cg_fs_c = FunctionSpace(mesh_h[0], 'CG', 1)
-    dg_fs_f = FunctionSpace(mesh_h[1], 'DG', 0)
-    cg_fs_f = FunctionSpace(mesh_h[1], 'CG', 1)
-
-    var = 2.0
-
-    QG = two_level_quasi_geostrophic(dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, var)
-
-    ts = np.linspace(1, 3, 3)
-    for i in range(len(ts)):
-        QG.timestepper(ts[i])
-        assert np.any(QG.qg_class_c.psi_forced.dat.data !=
-                      np.zeros(len(QG.qg_class_c.psi_forced.dat.data)))
-        if i > 0:
-            assert np.any(QG.qg_class_c.psi_forced.dat.data != u_)
-        u_ = np.copy(QG.qg_class_c.psi_forced.dat.data)
-
-
-def test_random_ic():
-
-    mesh = UnitSquareMesh(2, 2)
-    dg_fs = FunctionSpace(mesh, 'DG', 0)
-    cg_fs = FunctionSpace(mesh, 'CG', 1)
-
-    var = 0.0
-
-    x = SpatialCoordinate(mesh)
-    ufl_expression = sin(2 * pi * x[0])
-
-    QG = quasi_geostrophic(dg_fs, cg_fs, var)
-    QG.initial_condition(ufl_expression, 1.0)
-    G = Function(dg_fs).assign(QG.q_)
-
-    QG = quasi_geostrophic(dg_fs, cg_fs, var)
-    QG.initial_condition(ufl_expression, 1.0)
-    assert norm(assemble(G - QG.q_))
-
-
 def test_fixed_ic():
 
     mesh = UnitSquareMesh(2, 2)
@@ -68,33 +25,6 @@ def test_fixed_ic():
     QG = quasi_geostrophic(dg_fs, cg_fs, var)
     QG.initial_condition(ufl_expression)
     assert norm(assemble(G - QG.q_)) == 0
-
-
-def test_random_ic_two_level():
-
-    mesh = UnitSquareMesh(2, 2)
-    mesh_h = MeshHierarchy(mesh, 1)
-    dg_fs_c = FunctionSpace(mesh_h[0], 'DG', 0)
-    cg_fs_c = FunctionSpace(mesh_h[0], 'CG', 1)
-    dg_fs_f = FunctionSpace(mesh_h[1], 'DG', 0)
-    cg_fs_f = FunctionSpace(mesh_h[1], 'CG', 1)
-
-    var = 0.0
-
-    x_c = SpatialCoordinate(mesh_h[0])
-    x_f = SpatialCoordinate(mesh_h[1])
-    ufl_expression_c = sin(2 * pi * x_c[0])
-    ufl_expression_f = sin(2 * pi * x_f[0])
-
-    QG = two_level_quasi_geostrophic(dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, var)
-    QG.initial_condition(ufl_expression_c, ufl_expression_f, 10.0)
-    G_c = Function(dg_fs_c).assign(QG.q_[0])
-    G_f = Function(dg_fs_f).assign(QG.q_[1])
-
-    QG = two_level_quasi_geostrophic(dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, var)
-    QG.initial_condition(ufl_expression_c, ufl_expression_f, 10.0)
-    assert norm(assemble(G_c - QG.q_[0])) > 0
-    assert norm(assemble(G_f - QG.q_[1])) > 0
 
 
 def test_fixed_ic_two_level():
