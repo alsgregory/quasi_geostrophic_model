@@ -18,7 +18,7 @@ __all__ = ["quasi_geostrophic", "two_level_quasi_geostrophic"]
 
 class base_class(object):
 
-    def __init__(self, dg_fs, cg_fs, variance, adaptive_timestep):
+    def __init__(self, dg_fs, cg_fs, variance, timestep, adaptive_timestep):
 
         # define function spaces
         self.Vdg = dg_fs
@@ -54,7 +54,7 @@ class base_class(object):
             self.dt = 0.3 * round(self.mdx.comm.allreduce(self.mdx.dat.data_ro.min(),
                                                           MPI.MIN), 8)
         else:
-            self.dt = 0.3 * 0.05  # allows up to dx = 0.05
+            self.dt = 0.3 * timestep  # allows up to dx = 0.05
 
         self.const_dt = Constant(self.dt)
 
@@ -210,7 +210,7 @@ class base_class(object):
 
 class quasi_geostrophic(object):
 
-    def __init__(self, dg_fs, cg_fs, variance, adaptive_timestep=False):
+    def __init__(self, dg_fs, cg_fs, variance, timestep=0.05, adaptive_timestep=False):
 
         """ class specifying a randomly forced quasi geostrophic model
 
@@ -225,9 +225,15 @@ class quasi_geostrophic(object):
             :arg variance: Variance of ou process controlling magnitude of random forcing
             :type variance: int, if zero, forcing is off
 
+            :arg timestep: The desired timestep if not using adaptive timestepping
+            :type timestep: float
+
+            :arg adaptive_timestep: Whether or not to use adaptive timestepping
+            :type adaptive_timestep: boolean
+
         """
 
-        self.qg_class = base_class(dg_fs, cg_fs, variance, adaptive_timestep)
+        self.qg_class = base_class(dg_fs, cg_fs, variance, timestep, adaptive_timestep)
 
         self.variance = self.qg_class.variance
         self.mesh = self.qg_class.mesh
@@ -290,7 +296,7 @@ class quasi_geostrophic(object):
 
 class two_level_quasi_geostrophic(object):
 
-    def __init__(self, dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, variance, adaptive_timestep=False):
+    def __init__(self, dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, variance, timestep=0.05, adaptive_timestep=False):
 
         """ class specifying a correlated randomly forced quasi geostrophic model
         on two levels
@@ -316,10 +322,16 @@ class two_level_quasi_geostrophic(object):
             :arg variance: Variance of ou process controlling magnitude of random forcing
             :type variance: int, if zero, forcing is off
 
+            :arg timestep: The desired timestep if not using adaptive timestepping
+            :type timestep: float
+
+            :arg adaptive_timestep: Whether or not to use adaptive timestepping
+            :type adaptive_timestep: boolean
+
         """
 
-        self.qg_class_c = base_class(dg_fs_c, cg_fs_c, variance, adaptive_timestep)
-        self.qg_class_f = base_class(dg_fs_f, cg_fs_f, variance, adaptive_timestep)
+        self.qg_class_c = base_class(dg_fs_c, cg_fs_c, variance, timestep, adaptive_timestep)
+        self.qg_class_f = base_class(dg_fs_f, cg_fs_f, variance, timestep, adaptive_timestep)
 
         self.variance = variance
         self.mesh_c = self.qg_class_c.mesh
