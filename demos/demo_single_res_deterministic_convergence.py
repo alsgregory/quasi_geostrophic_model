@@ -81,8 +81,8 @@ for k in range(2):
         # project solution to finest mesh and calculate error
         prolong(QG.q_, q_func_finest)
         prolong(QG.psi_, psi_func_finest)
-        error_q[k, l] = norm(q_func_finest - comp_q)
-        error_psi[k, l] = norm(psi_func_finest - comp_psi)
+        error_q[k, l] = assemble(sqrt((q_func_finest - comp_q) ** 2) * dx)
+        error_psi[k, l] = assemble(sqrt((psi_func_finest - comp_psi) ** 2) * dx)
 
         print 'completed simulation of PV on level: ', l, ' with degree: ', k
 
@@ -93,7 +93,7 @@ plot.loglog(dxs, error_q[1, :], 'bo-')
 plot.loglog(dxs, 5e0 * (dxs ** 1), 'k')
 plot.loglog(dxs, 1e0 * (dxs ** 2), 'k--')
 plot.xlabel('dx')
-plot.ylabel('norm error')
+plot.ylabel('\int |\psi_L - \psi| dx')
 plot.legend(['streamfunction CG1', 'potential vorticity DG0',
              'potential vorticity DG1',
              'linear decay', 'quadratic decay'])
