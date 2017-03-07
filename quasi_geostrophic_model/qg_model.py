@@ -148,6 +148,16 @@ class base_class(object):
                                                 solver_parameters={'ksp_type': 'cg',
                                                                    'pc_type': 'sor'})
 
+    def __update_psi(self):
+
+        """ generates a psi from the current value of q, potential voriticity """
+
+        # set old q to be current one
+        self.q_old.assign(self.q_)
+
+        # solve linear elliptic operator
+        self.psi_solver.solve()
+
     def __update_sigma(self, dW):
 
         """ generates optional ou process controlling variance of random field """
@@ -254,6 +264,10 @@ class quasi_geostrophic(object):
             raise ValueError("can't set initial condition when time is not zero")
 
         self.qg_class.initial_condition(ufl_expression)
+
+    def update_psi(self):
+
+        self.qg_class._base_class__update_psi()
 
     def timestepper(self, T):
 
@@ -411,6 +425,11 @@ class two_level_quasi_geostrophic(object):
 
         self.qg_class_c.initial_condition(ufl_expression_c)
         self.qg_class_f.initial_condition(ufl_expression_f)
+
+    def update_psi(self):
+
+        self.qg_class_c._base_class__update_psi()
+        self.qg_class_f._base_class__update_psi()
 
     def timestepper(self, T):
 

@@ -316,6 +316,47 @@ def test_deterministic_q_2():
     assert norm(assemble(f_f - g_f)) == 0
 
 
+def test_update_psi():
+
+    mesh = UnitSquareMesh(2, 2)
+    dg_fs = FunctionSpace(mesh, 'DG', 0)
+    cg_fs = FunctionSpace(mesh, 'CG', 1)
+
+    var = 1.0
+
+    # no initial condition
+    QG = quasi_geostrophic(dg_fs, cg_fs, var)
+
+    # update psi and compare
+    psi = np.copy(QG.psi_.dat.data)
+    QG.update_psi()
+
+    assert np.max(np.abs(QG.psi_.dat.data - psi)) < 1e-8
+
+
+def test_update_psi_two_level():
+
+    mesh = UnitSquareMesh(2, 2)
+    mesh_hierarchy = MeshHierarchy(mesh, 1)
+    dg_fs_c = FunctionSpace(mesh_hierarchy[0], 'DG', 0)
+    cg_fs_c = FunctionSpace(mesh_hierarchy[0], 'CG', 1)
+    dg_fs_f = FunctionSpace(mesh_hierarchy[1], 'DG', 0)
+    cg_fs_f = FunctionSpace(mesh_hierarchy[1], 'CG', 1)
+
+    var = 1.0
+
+    # no initial condition
+    QG = two_level_quasi_geostrophic(dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, var)
+
+    # update psi and compare
+    psic = np.copy(QG.psi_[0].dat.data)
+    psif = np.copy(QG.psi_[1].dat.data)
+    QG.update_psi()
+
+    assert np.max(np.abs(QG.psi_[0].dat.data - psic)) < 1e-8
+    assert np.max(np.abs(QG.psi_[1].dat.data - psif)) < 1e-8
+
+
 if __name__ == "__main__":
     import os
     import pytest
