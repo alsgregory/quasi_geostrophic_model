@@ -220,9 +220,6 @@ class base_class(object):
         self.q_old.assign(self.q_)
         self.psi_solver.solve()
 
-        # update the current time-step psi with forcing
-        self.__update_psi_forced()
-
 
 class quasi_geostrophic(object):
 
@@ -257,7 +254,7 @@ class quasi_geostrophic(object):
         self.dt = self.qg_class.dt
 
         self.q_ = self.qg_class.q_
-        self.psi_ = self.qg_class.psi_forced
+        self.psi_ = self.qg_class.psi_
 
         self.t = 0
 
@@ -388,7 +385,7 @@ class two_level_quasi_geostrophic(object):
                 raise ValueError('Time-steps are not the same without adaptivity')
 
         self.q_ = tuple([self.qg_class_c.q_, self.qg_class_f.q_])
-        self.psi_ = tuple([self.qg_class_c.psi_forced, self.qg_class_f.psi_forced])
+        self.psi_ = tuple([self.qg_class_c.psi_, self.qg_class_f.psi_])
 
         self.t = 0
 
