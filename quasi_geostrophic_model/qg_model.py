@@ -64,6 +64,7 @@ class base_class(object):
         # define functions
         self.q_ = Function(self.Vdg)  # actual q
         self.psi_ = Function(self.Vcg)  # actual streamfunction
+        self.psi_forced = Function(self.Vcg)  # forced streamfunction
         self.q_old = Function(self.Vdg)  # last time-step q
         self.dq = Function(self.Vdg)  # intermediate q for inter - RK steps
         self.forcing = Function(self.Vcg)
@@ -103,6 +104,10 @@ class base_class(object):
 
         # interpolate structured expression for q and solve for q
         self.q_.interpolate(ufl_expression)
+        self.q_old.assign(self.q_)
+
+        # update psi
+        self.psi_solver.solve()
 
     def setup_solver(self):
 
@@ -128,13 +133,13 @@ class base_class(object):
                                                                      'pc_type': 'sor'})
 
         self.n = FacetNormal(self.mesh)
-        self.un = 0.5 * (dot(self.gradperp(self.psi_), self.n) +
-                         abs(dot(self.gradperp(self.psi_), self.n)))
+        self.un = 0.5 * (dot(self.gradperp(self.psi_forced), self.n) +
+                         abs(dot(self.gradperp(self.psi_forced), self.n)))
 
         # setup advection solver
         self.a_mass = self.p * self.q * dx
 
-        self.a_int = (dot(grad(self.p), -self.gradperp(self.psi_) * self.q)) * dx
+        self.a_int = (dot(grad(self.p), -self.gradperp(self.psi_forced) * self.q)) * dx
 
         self.a_flux = (dot(jump(self.p), self.un('+') * self.q('+') -
                            self.un('-') * self.q('-'))) * dS
@@ -188,34 +193,32 @@ class base_class(object):
         """ adds the random field to psi at each RK step """
 
         if self.variance == 0:
-            self.psi_.assign(self.psi_)
+            self.psi_forced.assign(self.psi_)
         else:
-            self.psi_.assign(self.psi_ + self.forcing)
+            self.psi_forced.assign(self.psi_ + self.forcing)
 
     def timestep(self):
 
         """ completes one RK3 time-step """
 
-        # set old time-step to be current one
-        self.q_old.assign(self.q_)
-
         # 1st RK step
-        self.psi_solver.solve()
         self.__update_psi_forced()
         self.q_solver.solve()
         self.q_old.assign(self.dq)
+        self.psi_solver.solve()
 
         # 2nd RK step
-        self.psi_solver.solve()
         self.__update_psi_forced()
         self.q_solver.solve()
         self.q_old.assign(((3.0 / 4.0) * self.q_) + ((1.0 / 4.0) * self.dq))
+        self.psi_solver.solve()
 
         # 3rd RK step
-        self.psi_solver.solve()
         self.__update_psi_forced()
         self.q_solver.solve()
         self.q_.assign(((1.0 / 3.0) * self.q_) + ((2.0 / 3.0) * self.dq))
+        self.q_old.assign(self.q_)
+        self.psi_solver.solve()
 
 
 class quasi_geostrophic(object):

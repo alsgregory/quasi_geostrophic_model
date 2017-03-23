@@ -105,7 +105,7 @@ def test_zero_solution_q():
     QG.timestepper(1.0)
 
     assert np.all(QG.q_.dat.data[:] == 0.0)
-    assert np.any(QG.psi_.dat.data[:] != 0.0)
+    assert np.any(QG.psi_.dat.data[:] == 0.0)
 
 
 def test_zero_solution_q_2():
@@ -124,10 +124,10 @@ def test_zero_solution_q_2():
     QG.timestepper(1.0)
 
     assert np.all(QG.q_[0].dat.data[:] == 0.0)
-    assert np.any(QG.psi_[0].dat.data[:] != 0.0)
+    assert np.any(QG.psi_[0].dat.data[:] == 0.0)
 
     assert np.all(QG.q_[1].dat.data[:] == 0.0)
-    assert np.any(QG.psi_[1].dat.data[:] != 0.0)
+    assert np.any(QG.psi_[1].dat.data[:] == 0.0)
 
 
 def test_correct_fs():
