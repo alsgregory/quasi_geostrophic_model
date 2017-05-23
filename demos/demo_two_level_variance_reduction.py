@@ -20,7 +20,7 @@ L = 4
 mesh_hierarchy = MeshHierarchy(mesh, L)
 
 # define sample size
-n = 5
+n = 10
 
 # define variance
 variance = 0.125
@@ -91,7 +91,7 @@ for l in range(L):
 dxf = 1.0 / 2 ** (np.linspace(1, L, L))
 
 plot.loglog(dxf, sample_variances_difference)
-plot.loglog(dxf, 1e-6 * dxf ** (3), 'k--')
+plot.loglog(dxf, 1e-9 * dxf ** (4), 'k--')
 plot.xlabel('normalized dx of coarse level')
 plot.ylabel('sample variance difference')
 plot.show()
