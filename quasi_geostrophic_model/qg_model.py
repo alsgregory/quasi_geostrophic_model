@@ -18,7 +18,7 @@ __all__ = ["quasi_geostrophic", "two_level_quasi_geostrophic"]
 
 class base_class(object):
 
-    def __init__(self, dg_fs, cg_fs, variance, timestep, adaptive_timestep):
+    def __init__(self, dg_fs, cg_fs, variance, timestep, adaptive_timestep, start_time=0, start_psi=None, start_q=None):
 
         # define function spaces
         self.Vdg = dg_fs
@@ -61,11 +61,21 @@ class base_class(object):
         # set-up noise variance
         self.variance = variance
 
+        if start_time > 0:
+            if start_psi is None or start_q is None:
+                raise ValueError('If start time is greater than 0, psi and q need to be defined')
+
         # define functions
-        self.q_ = Function(self.Vdg)  # actual q
-        self.psi_ = Function(self.Vcg)  # actual streamfunction
+        if start_psi is not None and start_q is not None and start_time > 0:
+            self.q_ = Function(self.Vdg).assign(start_q)  # actual q
+            self.psi_ = Function(self.Vcg).assign(start_psi)  # actual streamfunction
+            self.q_old = Function(self.Vdg).assign(self.q_)  # last time-step q
+        else:
+            self.q_ = Function(self.Vdg)  # actual q
+            self.psi_ = Function(self.Vcg)  # actual streamfunction
+            self.q_old = Function(self.Vdg)  # last time-step q
+
         self.psi_forced = Function(self.Vcg)  # forced streamfunction
-        self.q_old = Function(self.Vdg)  # last time-step q
         self.dq = Function(self.Vdg)  # intermediate q for inter - RK steps
         self.forcing = Function(self.Vcg)
 
@@ -223,7 +233,7 @@ class base_class(object):
 
 class quasi_geostrophic(object):
 
-    def __init__(self, dg_fs, cg_fs, variance, timestep=0.05, adaptive_timestep=False):
+    def __init__(self, dg_fs, cg_fs, variance, timestep=0.05, adaptive_timestep=False, start_time=0, start_psi=None, start_q=None):
 
         """ class specifying a randomly forced quasi geostrophic model
 
@@ -244,9 +254,21 @@ class quasi_geostrophic(object):
             :arg adaptive_timestep: Whether or not to use adaptive timestepping
             :type adaptive_timestep: boolean
 
+            :arg start_time: Time to start simulation from
+            :type start_time: float
+
+            :arg start_psi: psi to start with if start_time > 0
+            :type start_psi: :class:`Function`
+
+            :arg start_q: q to start with if start_time > 0
+            :type start_q: :class:`Function`
+
         """
 
-        self.qg_class = base_class(dg_fs, cg_fs, variance, timestep, adaptive_timestep)
+        self.t = start_time
+
+        self.qg_class = base_class(dg_fs, cg_fs, variance, timestep,
+                                   adaptive_timestep, start_time=start_time, start_psi=start_psi, start_q=start_q)
 
         self.variance = self.qg_class.variance
         self.mesh = self.qg_class.mesh
@@ -255,8 +277,6 @@ class quasi_geostrophic(object):
 
         self.q_ = self.qg_class.q_
         self.psi_ = self.qg_class.psi_
-
-        self.t = 0
 
         super(quasi_geostrophic, self).__init__()
 
@@ -267,10 +287,6 @@ class quasi_geostrophic(object):
             raise ValueError("can't set initial condition when time is not zero")
 
         self.qg_class.initial_condition(ufl_expression)
-
-    def update_psi(self):
-
-        self.qg_class._base_class__update_psi()
 
     def timestepper(self, T):
 
@@ -313,7 +329,7 @@ class quasi_geostrophic(object):
 
 class two_level_quasi_geostrophic(object):
 
-    def __init__(self, dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, variance, timestep=0.05, adaptive_timestep=False):
+    def __init__(self, dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, variance, timestep=0.05, adaptive_timestep=False, start_time=0, start_psi_c=None, start_q_c=None, start_psi_f=None, start_q_f=None):
 
         """ class specifying a correlated randomly forced quasi geostrophic model
         on two levels
@@ -345,10 +361,29 @@ class two_level_quasi_geostrophic(object):
             :arg adaptive_timestep: Whether or not to use adaptive timestepping
             :type adaptive_timestep: boolean
 
+            :arg start_time: Time to start simulation from
+            :type start_time: float
+
+            :arg start_psi_c: psi_c to start with if start_time > 0
+            :type start_psi_c: :class:`Function`
+
+            :arg start_q_c: q_c to start with if start_time > 0
+            :type start_q_c: :class:`Function`
+
+            :arg start_psi_f: psi_f to start with if start_time > 0
+            :type start_psi_f: :class:`Function`
+
+            :arg start_q_f: q_f to start with if start_time > 0
+            :type start_q_f: :class:`Function`
+
         """
 
-        self.qg_class_c = base_class(dg_fs_c, cg_fs_c, variance, timestep, adaptive_timestep)
-        self.qg_class_f = base_class(dg_fs_f, cg_fs_f, variance, timestep, adaptive_timestep)
+        self.t = start_time
+
+        self.qg_class_c = base_class(dg_fs_c, cg_fs_c, variance, timestep,
+                                     adaptive_timestep, start_time=start_time, start_psi=start_psi_c, start_q=start_q_c)
+        self.qg_class_f = base_class(dg_fs_f, cg_fs_f, variance, timestep,
+                                     adaptive_timestep, start_time=start_time, start_psi=start_psi_f, start_q=start_q_f)
 
         self.variance = variance
         self.mesh_c = self.qg_class_c.mesh
@@ -387,11 +422,9 @@ class two_level_quasi_geostrophic(object):
         self.q_ = tuple([self.qg_class_c.q_, self.qg_class_f.q_])
         self.psi_ = tuple([self.qg_class_c.psi_, self.qg_class_f.psi_])
 
-        self.t = 0
-
         # for checking
-        self.__t_c = 0
-        self.__t_f = 0
+        self.__t_c = start_time
+        self.__t_f = start_time
 
         self.adaptive_timestep = adaptive_timestep
 
@@ -428,11 +461,6 @@ class two_level_quasi_geostrophic(object):
 
         self.qg_class_c.initial_condition(ufl_expression_c)
         self.qg_class_f.initial_condition(ufl_expression_f)
-
-    def update_psi(self):
-
-        self.qg_class_c._base_class__update_psi()
-        self.qg_class_f._base_class__update_psi()
 
     def timestepper(self, T):
 
