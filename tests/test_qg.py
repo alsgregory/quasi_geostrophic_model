@@ -7,6 +7,85 @@ import numpy as np
 from quasi_geostrophic_model import *
 
 
+def test_delayed_start():
+
+    mesh = UnitSquareMesh(10, 10)
+    dg_fs = FunctionSpace(mesh, 'DG', 0)
+    cg_fs = FunctionSpace(mesh, 'CG', 1)
+
+    var = 0.0
+
+    x = SpatialCoordinate(mesh)
+    ufl_expression = sin(2 * pi * x[0])
+
+    QG = quasi_geostrophic(dg_fs, cg_fs, var)
+    QG.initial_condition(ufl_expression)
+
+    # get initial q and psi
+    QG.timestepper(1.0)
+    halfFpsi = Function(cg_fs).assign(QG.psi_)
+    halfFq = Function(dg_fs).assign(QG.q_)
+
+    # delayed start one
+    QG1 = quasi_geostrophic(dg_fs, cg_fs, var, start_time=1.0, start_psi=halfFpsi, start_q=halfFq)
+    QG1.timestepper(3.0)
+
+    # carry on initial simulation
+    QG.timestepper(3.0)
+    Fpsi = Function(cg_fs).assign(QG.psi_)
+    Fq = Function(dg_fs).assign(QG.q_)
+
+    # compare
+    assert norm(assemble(QG1.q_ - Fq)) < 1e-10
+    assert norm(assemble(QG1.psi_ - Fpsi)) < 1e-10
+
+
+def test_delayed_start_two_level():
+
+    mesh = UnitSquareMesh(10, 10)
+    mesh_hierarchy = MeshHierarchy(mesh, 1)
+    dg_fs_c = FunctionSpace(mesh_hierarchy[0], 'DG', 0)
+    cg_fs_c = FunctionSpace(mesh_hierarchy[0], 'CG', 1)
+    dg_fs_f = FunctionSpace(mesh_hierarchy[1], 'DG', 0)
+    cg_fs_f = FunctionSpace(mesh_hierarchy[1], 'CG', 1)
+
+    var = 0.0
+
+    xc = SpatialCoordinate(mesh_hierarchy[0])
+    ufl_expression_c = sin(2 * pi * xc[0])
+    xf = SpatialCoordinate(mesh_hierarchy[1])
+    ufl_expression_f = sin(2 * pi * xf[0])
+
+    QG = two_level_quasi_geostrophic(dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, var)
+    QG.initial_condition(ufl_expression_c, ufl_expression_f)
+
+    # get initial q and psi
+    QG.timestepper(1.0)
+    halfFpsi_c = Function(cg_fs_c).assign(QG.psi_[0])
+    halfFq_c = Function(dg_fs_c).assign(QG.q_[0])
+    halfFpsi_f = Function(cg_fs_f).assign(QG.psi_[1])
+    halfFq_f = Function(dg_fs_f).assign(QG.q_[1])
+
+    # delayed start one
+    QG1 = two_level_quasi_geostrophic(dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, var,
+                                      start_time=1.0, start_psi_c=halfFpsi_c, start_q_c=halfFq_c,
+                                      start_psi_f=halfFpsi_f, start_q_f=halfFq_f)
+    QG1.timestepper(3.0)
+
+    # carry on initial simulation
+    QG.timestepper(3.0)
+    Fpsi_c = Function(cg_fs_c).assign(QG.psi_[0])
+    Fq_c = Function(dg_fs_c).assign(QG.q_[0])
+    Fpsi_f = Function(cg_fs_f).assign(QG.psi_[1])
+    Fq_f = Function(dg_fs_f).assign(QG.q_[1])
+
+    # compare
+    assert norm(assemble(QG1.q_[0] - Fq_c)) < 1e-10
+    assert norm(assemble(QG1.psi_[0] - Fpsi_c)) < 1e-10
+    assert norm(assemble(QG1.q_[1] - Fq_f)) < 1e-10
+    assert norm(assemble(QG1.psi_[1] - Fpsi_f)) < 1e-10
+
+
 def test_fixed_ic():
 
     mesh = UnitSquareMesh(2, 2)
@@ -314,47 +393,6 @@ def test_deterministic_q_2():
 
     assert norm(assemble(f_c - g_c)) == 0
     assert norm(assemble(f_f - g_f)) == 0
-
-
-def test_update_psi():
-
-    mesh = UnitSquareMesh(2, 2)
-    dg_fs = FunctionSpace(mesh, 'DG', 0)
-    cg_fs = FunctionSpace(mesh, 'CG', 1)
-
-    var = 1.0
-
-    # no initial condition
-    QG = quasi_geostrophic(dg_fs, cg_fs, var)
-
-    # update psi and compare
-    psi = np.copy(QG.psi_.dat.data)
-    QG.update_psi()
-
-    assert np.max(np.abs(QG.psi_.dat.data - psi)) < 1e-8
-
-
-def test_update_psi_two_level():
-
-    mesh = UnitSquareMesh(2, 2)
-    mesh_hierarchy = MeshHierarchy(mesh, 1)
-    dg_fs_c = FunctionSpace(mesh_hierarchy[0], 'DG', 0)
-    cg_fs_c = FunctionSpace(mesh_hierarchy[0], 'CG', 1)
-    dg_fs_f = FunctionSpace(mesh_hierarchy[1], 'DG', 0)
-    cg_fs_f = FunctionSpace(mesh_hierarchy[1], 'CG', 1)
-
-    var = 1.0
-
-    # no initial condition
-    QG = two_level_quasi_geostrophic(dg_fs_c, cg_fs_c, dg_fs_f, cg_fs_f, var)
-
-    # update psi and compare
-    psic = np.copy(QG.psi_[0].dat.data)
-    psif = np.copy(QG.psi_[1].dat.data)
-    QG.update_psi()
-
-    assert np.max(np.abs(QG.psi_[0].dat.data - psic)) < 1e-8
-    assert np.max(np.abs(QG.psi_[1].dat.data - psif)) < 1e-8
 
 
 if __name__ == "__main__":
