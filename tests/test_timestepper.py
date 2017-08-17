@@ -21,6 +21,23 @@ def test_timestepper_final_time():
     assert QG.t == 2.0
 
 
+def test_timestepper_final_time_delayed_start():
+
+    mesh = UnitSquareMesh(2, 2)
+    dg_fs = FunctionSpace(mesh, 'DG', 0)
+    cg_fs = FunctionSpace(mesh, 'CG', 1)
+
+    var = 0.0
+
+    QG = quasi_geostrophic(dg_fs, cg_fs, var, start_time=1.0, start_psi=Function(cg_fs), start_q=Function(dg_fs))
+
+    assert QG.t == 1.0
+
+    QG.timestepper(2.0)
+
+    assert QG.t == 2.0
+
+
 def test_timestepper_final_time_2():
 
     mesh = UnitSquareMesh(2, 2)
