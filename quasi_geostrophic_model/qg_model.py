@@ -28,7 +28,7 @@ class base_class(object):
 
         # define base noise fields
         self.Xis = []
-        self.nxi = 3  # number of terms in KL expansion
+        self.nxi = 4  # number of terms in KL expansion
         self.W = []
         for i in range(self.nxi):
             self.Xis.append(Function(self.Vcg))
@@ -38,6 +38,7 @@ class base_class(object):
         self.Xis[0].interpolate(sin(pi * x[0]) * sin(pi * x[1]))
         self.Xis[1].interpolate(sin(2 * pi * x[0]) * sin(pi * x[1]))
         self.Xis[2].interpolate(sin(pi * x[0]) * sin(pi * 2 * x[1]))
+        self.Xis[3].interpolate(sin(pi * 2 * x[0]) * sin(pi * 2 * x[1]))
 
         # check that both function spaces have same mesh
         if self.mesh is not cg_fs.mesh():
@@ -51,10 +52,10 @@ class base_class(object):
         self.mdx = MinDx(self.mesh)
         if adaptive_timestep is True:
             # scale (dt / dx) by p <= 0.3 as we want Courant <= 0.3. Assume |u| = 1
-            self.dt = 0.3 * round(self.mdx.comm.allreduce(self.mdx.dat.data_ro.min(),
-                                                          MPI.MIN), 8)
+            self.dt = 0.4 * 2 * round(self.mdx.comm.allreduce(self.mdx.dat.data_ro.min(),
+                                                              MPI.MIN), 8)
         else:
-            self.dt = 0.3 * timestep  # allows up to dx = 0.05
+            self.dt = 0.4 * timestep  # allows up to dx = 0.05
 
         self.const_dt = Constant(self.dt)
 
@@ -186,8 +187,8 @@ class base_class(object):
 
         # generate random field
         for i in range(self.nxi):
-            self.W[i].assign(np.random.normal(0, 1.0) *
-                             0.01 * self.variance)
+            self.W[i].assign(np.random.normal(0, 1.0) * (np.sqrt(self.const_dt.dat.data[0]) ** (-1)) *
+                             0.0025 * self.variance)
 
     def __update_kl_expansion(self):
 
@@ -443,8 +444,7 @@ class two_level_quasi_geostrophic(object):
 
         """ normalizes coarse forcing with scaled number of fine timesteps """
         for i in range(self.qg_class_f.nxi):
-            self.qg_class_c.W[i].assign(self.qg_class_c.W[i] /
-                                        np.sqrt(self.cdtf))
+            self.qg_class_c.W[i].assign(self.qg_class_c.W[i] / self.cdtf)
 
     def __reset_coarse_forcing(self):
 
@@ -571,6 +571,12 @@ class two_level_quasi_geostrophic(object):
                     # timestep
                     self.qg_class_c.timestep()
                     self.qg_class_f.timestep()
+
+                    # update time
+                    self.t += self.qg_class_c.const_dt.dat.data[0]
+
+                    self.__t_c += self.qg_class_c.const_dt.dat.data[0]
+                    self.__t_f += self.qg_class_f.const_dt.dat.data[0]
 
             else:
 
